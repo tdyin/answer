@@ -34,6 +34,7 @@ func TestAgentNotificationOnlyRoutesSupportedExternalEvents(t *testing.T) {
 	for action, kind := range map[string]string{
 		constant.NotificationAnswerTheQuestion: "answer.created",
 		constant.NotificationCommentQuestion:   "comment.created",
+		constant.NotificationReplyToYou:        "comment.created",
 		constant.NotificationCommentAnswer:     "comment.created",
 		constant.NotificationMentionYou:        "mention",
 		constant.NotificationAcceptAnswer:      "topic.resolved",

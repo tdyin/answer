@@ -89,7 +89,7 @@ func agentNotification(row *entity.Notification) (AgentNotification, bool) {
 	switch content.NotificationAction {
 	case constant.NotificationAnswerTheQuestion:
 		kind = "answer.created"
-	case constant.NotificationCommentQuestion, constant.NotificationCommentAnswer:
+	case constant.NotificationCommentQuestion, constant.NotificationCommentAnswer, constant.NotificationReplyToYou:
 		kind = "comment.created"
 	case constant.NotificationMentionYou:
 		kind = "mention"
