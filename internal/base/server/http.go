@@ -52,6 +52,7 @@ func NewHTTPServer(debug bool,
 		gin.SetMode(gin.ReleaseMode)
 	}
 	r := gin.New()
+	r.Use(authUserMiddleware.PrivateAccess())
 	r.Use(middleware.Recovery(
 		uiConf.APIBaseURL+"/answer/api/v1",
 		uiConf.APIBaseURL+"/answer/admin/api",

@@ -31,6 +31,11 @@ import (
 // VisitAuth when user visit the site image, check visit token. This only for private mode.
 func (am *AuthUserMiddleware) VisitAuth() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
+		// PrivateAccess already checked the owner account for this request.
+		if user := GetUserInfoFromContext(ctx); user != nil && user.RequestScoped {
+			ctx.Next()
+			return
+		}
 		if len(os.Getenv("SKIP_FILE_ACCESS_VERIFY")) > 0 {
 			ctx.Next()
 			return

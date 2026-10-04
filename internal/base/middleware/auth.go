@@ -26,6 +26,7 @@ import (
 	"github.com/apache/answer/internal/schema"
 	"github.com/apache/answer/internal/service/role"
 	"github.com/apache/answer/internal/service/siteinfo_common"
+	usercommon "github.com/apache/answer/internal/service/user_common"
 	"github.com/apache/answer/ui"
 	"github.com/gin-gonic/gin"
 
@@ -42,6 +43,7 @@ var ctxUUIDKey = "ctxUuidKey"
 
 // AuthUserMiddleware auth user middleware
 type AuthUserMiddleware struct {
+	userCommon            *usercommon.UserCommon
 	authService           *auth.AuthService
 	siteInfoCommonService siteinfo_common.SiteInfoCommonService
 }
@@ -49,8 +51,9 @@ type AuthUserMiddleware struct {
 // NewAuthUserMiddleware new auth user middleware
 func NewAuthUserMiddleware(
 	authService *auth.AuthService,
-	siteInfoCommonService siteinfo_common.SiteInfoCommonService) *AuthUserMiddleware {
+	siteInfoCommonService siteinfo_common.SiteInfoCommonService, userCommon *usercommon.UserCommon) *AuthUserMiddleware {
 	return &AuthUserMiddleware{
+		userCommon:            userCommon,
 		authService:           authService,
 		siteInfoCommonService: siteInfoCommonService,
 	}

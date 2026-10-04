@@ -31,6 +31,7 @@ import (
 
 // AuthRepo auth repository
 type AuthRepo interface {
+	SetRequestUserCacheInfo(ctx context.Context, accessToken string, userInfo *entity.UserCacheInfo) error
 	GetUserCacheInfo(ctx context.Context, accessToken string) (userInfo *entity.UserCacheInfo, err error)
 	SetUserCacheInfo(ctx context.Context, accessToken, visitToken string, userInfo *entity.UserCacheInfo) error
 	GetUserVisitCacheInfo(ctx context.Context, visitToken string) (accessToken string, err error)
@@ -74,7 +75,12 @@ func (as *AuthService) GetUserCacheInfo(ctx context.Context, accessToken string)
 		userCacheInfo.EmailStatus = cacheInfo.EmailStatus
 		userCacheInfo.RoleID = cacheInfo.RoleID
 		// update current user cache info
-		err := as.authRepo.SetUserCacheInfo(ctx, accessToken, userCacheInfo.VisitToken, userCacheInfo)
+		var err error
+		if userCacheInfo.RequestScoped {
+			err = as.authRepo.SetRequestUserCacheInfo(ctx, accessToken, userCacheInfo)
+		} else {
+			err = as.authRepo.SetUserCacheInfo(ctx, accessToken, userCacheInfo.VisitToken, userCacheInfo)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -99,6 +105,13 @@ func (as *AuthService) SetUserCacheInfo(ctx context.Context, userInfo *entity.Us
 		return "", "", err
 	}
 	return accessToken, visitToken, err
+}
+
+// SetRequestUserCacheInfo creates no durable session mapping or visit cookie.
+func (as *AuthService) SetRequestUserCacheInfo(ctx context.Context, userInfo *entity.UserCacheInfo) (string, error) {
+	accessToken := token.GenerateToken()
+	userInfo.RequestScoped = true
+	return accessToken, as.authRepo.SetRequestUserCacheInfo(ctx, accessToken, userInfo)
 }
 
 func (as *AuthService) CheckUserVisitToken(ctx context.Context, visitToken string) bool {
