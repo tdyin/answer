@@ -80,6 +80,7 @@ func (nc *NotificationController) AgentEvents(ctx *gin.Context) {
 	controller := http.NewResponseController(ctx.Writer)
 	write := func(data string) bool {
 		_ = controller.SetWriteDeadline(time.Now().Add(10 * time.Second))
+		defer controller.SetWriteDeadline(time.Time{})
 		if _, err := fmt.Fprint(ctx.Writer, data); err != nil {
 			return false
 		}
