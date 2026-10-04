@@ -21,6 +21,8 @@ package notification
 
 import (
 	"context"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/apache/answer/internal/base/data"
@@ -89,5 +91,44 @@ func TestAgentFeedSnapshotAcknowledgementsAndLiveOverlap(t *testing.T) {
 	row, found, err := repo.GetById(ctx, third)
 	if err != nil || !found || row.IsRead != schema.NotificationNotRead {
 		t.Fatalf("delivery changed unread state: %+v %v", row, err)
+	}
+}
+
+func TestAcknowledgementIsRecipientScopedAndAtomic(t *testing.T) {
+	db, err := xorm.NewEngine("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	db.SetMaxOpenConns(1)
+	if err := db.Sync2(new(entity.Notification)); err != nil {
+		t.Fatal(err)
+	}
+	repo := &notificationRepo{data: &data.Data{DB: db}}
+	row := &entity.Notification{UserID: "1", ObjectID: "100", Content: "{}", Type: 1, IsRead: 1, Status: 1}
+	if err := repo.AddNotification(context.Background(), row); err != nil {
+		t.Fatal(err)
+	}
+	if changed, err := repo.AcknowledgeNotification(context.Background(), "2", row.ID); err != nil || changed {
+		t.Fatalf("other recipient: %v %v", changed, err)
+	}
+	var winners atomic.Int32
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			changed, err := repo.AcknowledgeNotification(context.Background(), "1", row.ID)
+			if err != nil {
+				t.Error(err)
+			}
+			if changed {
+				winners.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	if winners.Load() != 1 {
+		t.Fatalf("expected exactly one read transition, got %d", winners.Load())
 	}
 }

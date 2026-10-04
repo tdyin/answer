@@ -80,14 +80,21 @@ func (nr *notificationRepo) ClearUnRead(ctx context.Context, userID string, noti
 	return
 }
 
-func (nr *notificationRepo) ClearIDUnRead(ctx context.Context, userID string, id string) (err error) {
-	info := &entity.Notification{}
-	info.IsRead = schema.NotificationRead
-	_, err = nr.data.DB.Context(ctx).Where("user_id = ?", userID).And("id = ?", id).Cols("is_read").Update(info)
+func (nr *notificationRepo) ClearIDUnRead(ctx context.Context, userID string, id string) error {
+	_, err := nr.AcknowledgeNotification(ctx, userID, id)
+	return err
+}
+
+// Compare-and-set prevents repeated or concurrent acknowledgements from consuming
+// another unread badge count. Recipient scoping stays inside the SQL mutation.
+func (nr *notificationRepo) AcknowledgeNotification(ctx context.Context, userID, id string) (bool, error) {
+	info := &entity.Notification{IsRead: schema.NotificationRead}
+	changed, err := nr.data.DB.Context(ctx).Where("user_id = ?", userID).And("id = ?", id).
+		And("is_read = ?", schema.NotificationNotRead).Cols("is_read").Update(info)
 	if err != nil {
-		return errors.InternalServer(reason.DatabaseError).WithError(err).WithStack()
+		return false, errors.InternalServer(reason.DatabaseError).WithError(err).WithStack()
 	}
-	return
+	return changed > 0, nil
 }
 
 func (nr *notificationRepo) GetById(ctx context.Context, id string) (*entity.Notification, bool, error) {

@@ -33,6 +33,11 @@ type AgentFeedRepo interface {
 	SubscribeAgent(string) (<-chan string, func())
 }
 
+// NotificationAcknowledger changes read state once even for concurrent requests.
+type NotificationAcknowledger interface {
+	AcknowledgeNotification(context.Context, string, string) (bool, error)
+}
+
 // AgentEventBus bounds each subscriber's backlog. A slow consumer is disconnected
 // so it can reconcile against the authoritative unread rows instead of losing IDs.
 type AgentEventBus struct {
