@@ -35,7 +35,8 @@ import (
 
 // notificationRepo notification repository
 type notificationRepo struct {
-	data *data.Data
+	data   *data.Data
+	events notficationcommon.AgentEventBus
 }
 
 // NewNotificationRepo new repository
@@ -51,6 +52,9 @@ func (nr *notificationRepo) AddNotification(ctx context.Context, notification *e
 	_, err = nr.data.DB.Context(ctx).Insert(notification)
 	if err != nil {
 		return errors.InternalServer(reason.DatabaseError).WithError(err).WithStack()
+	}
+	if notification.Type == schema.NotificationTypeInbox && notification.Status == schema.NotificationStatusNormal {
+		nr.events.Publish(notification.UserID, notification.ID)
 	}
 	return
 }

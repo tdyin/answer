@@ -58,7 +58,8 @@ func NewHTTPServer(debug bool,
 		uiConf.APIBaseURL+"/answer/admin/api",
 	))
 	r.Use(func(ctx *gin.Context) {
-		if strings.Contains(ctx.Request.URL.Path, "/chat/completions") {
+		if strings.Contains(ctx.Request.URL.Path, "/chat/completions") ||
+			strings.HasSuffix(ctx.Request.URL.Path, "/notification/agent/events") {
 			return
 		}
 		brotli.Brotli(brotli.DefaultCompression)(ctx)
