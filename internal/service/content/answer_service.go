@@ -774,10 +774,6 @@ func (as *AnswerService) notificationUpdateAnswer(ctx context.Context, questionU
 
 func (as *AnswerService) notificationAnswerTheQuestion(ctx context.Context,
 	questionUserID, questionID, answerID, answerUserID, questionTitle, answerSummary string) {
-	// If the question is answered by me, there is no notification for myself.
-	if questionUserID == answerUserID {
-		return
-	}
 	msg := &schema.NotificationMsg{
 		TriggerUserID:  answerUserID,
 		ReceiverUserID: questionUserID,
@@ -787,6 +783,11 @@ func (as *AnswerService) notificationAnswerTheQuestion(ctx context.Context,
 	msg.ObjectType = constant.AnswerObjectType
 	msg.NotificationAction = constant.NotificationAnswerTheQuestion
 	as.notificationQueueService.Send(ctx, msg)
+
+	// Internal dispatch still reaches watchers; only the self email is skipped.
+	if questionUserID == answerUserID {
+		return
+	}
 
 	receiverUserInfo, exist, err := as.userRepo.GetByUserID(ctx, questionUserID)
 	if err != nil {

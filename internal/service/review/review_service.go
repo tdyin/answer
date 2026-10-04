@@ -391,10 +391,6 @@ func (cs *ReviewService) updateObjectStatus(ctx context.Context, review *entity.
 
 func (cs *ReviewService) notificationAnswerTheQuestion(ctx context.Context,
 	questionUserID, questionID, answerID, answerUserID, questionTitle, answerSummary string) {
-	// If the question is answered by me, there is no notification for myself.
-	if questionUserID == answerUserID {
-		return
-	}
 	msg := &schema.NotificationMsg{
 		TriggerUserID:  answerUserID,
 		ReceiverUserID: questionUserID,
@@ -404,6 +400,11 @@ func (cs *ReviewService) notificationAnswerTheQuestion(ctx context.Context,
 	msg.ObjectType = constant.AnswerObjectType
 	msg.NotificationAction = constant.NotificationAnswerTheQuestion
 	cs.notificationQueueService.Send(ctx, msg)
+
+	// Internal dispatch still reaches watchers; only the self email is skipped.
+	if questionUserID == answerUserID {
+		return
+	}
 
 	receiverUserInfo, exist, err := cs.userRepo.GetByUserID(ctx, questionUserID)
 	if err != nil {

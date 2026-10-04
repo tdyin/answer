@@ -313,19 +313,13 @@ func (ar *AnswerActivityRepo) sendAcceptAnswerNotification(
 		}
 	}
 
-	for _, act := range op.Activities {
-		msg := &schema.NotificationMsg{
-			ReceiverUserID: act.ActivityUserID,
-			Type:           schema.NotificationTypeInbox,
-			ObjectID:       op.AnswerObjectID,
-			TriggerUserID:  op.TriggerUserID,
-		}
-		if act.ActivityUserID != op.QuestionUserID {
-			msg.ObjectType = constant.AnswerObjectType
-			msg.NotificationAction = constant.NotificationAcceptAnswer
-			ar.notificationQueueService.Send(ctx, msg)
-		}
-	}
+	// Resolution is a topic state change, independent of reputation activity rows.
+	// Self acceptance must still seed delivery to other topic watchers.
+	ar.notificationQueueService.Send(ctx, &schema.NotificationMsg{
+		ReceiverUserID: op.AnswerUserID, TriggerUserID: op.TriggerUserID,
+		Type: schema.NotificationTypeInbox, ObjectID: op.AnswerObjectID,
+		ObjectType: constant.AnswerObjectType, NotificationAction: constant.NotificationAcceptAnswer,
+	})
 }
 
 func (ar *AnswerActivityRepo) sendCancelAcceptAnswerNotification(
