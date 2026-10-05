@@ -47,9 +47,12 @@ type AgentNotificationPage struct {
 }
 
 // AgentMayReceive rechecks the current account, including for already-open streams.
-func (ns *NotificationService) AgentMayReceive(ctx context.Context, userID string) bool {
+func (ns *NotificationService) AgentMayReceive(ctx context.Context, userID string) (bool, error) {
 	user, exists, err := ns.userRepo.GetByUserID(ctx, userID)
-	return err == nil && exists && user.Status == entity.UserStatusAvailable && user.MailStatus == 1
+	if err != nil {
+		return false, err
+	}
+	return exists && user != nil && user.Status == entity.UserStatusAvailable && user.MailStatus == entity.EmailStatusAvailable, nil
 }
 
 func (ns *NotificationService) SubscribeAgent(userID string) (<-chan string, func(), error) {

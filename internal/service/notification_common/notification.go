@@ -145,7 +145,7 @@ func (ns *NotificationCommon) AddNotification(ctx context.Context, msg *schema.N
 	}
 
 	if msg.OnlyPushAllFollow || (msg.Type == schema.NotificationTypeInbox && msg.TriggerUserID == msg.ReceiverUserID) {
-		go ns.SendNotificationToAllFollower(ctx, msg, questionID)
+		ns.SendNotificationToAllFollower(ctx, msg, questionID)
 		return nil
 	}
 
@@ -216,7 +216,7 @@ func (ns *NotificationCommon) AddNotification(ctx context.Context, msg *schema.N
 		}
 	}
 
-	go ns.SendNotificationToAllFollower(ctx, msg, questionID)
+	ns.SendNotificationToAllFollower(ctx, msg, questionID)
 
 	if msg.Type == schema.NotificationTypeInbox {
 		ns.syncNotificationToPlugin(ctx, objInfo, msg)

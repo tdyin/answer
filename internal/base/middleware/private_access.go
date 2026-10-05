@@ -35,7 +35,7 @@ import (
 // PrivateAccess is opt-in. The socket peer, never X-Forwarded-For, establishes
 // the trusted Serve boundary. Host loopback publication and tailnet policy are
 // still required: all processes on the Serve host are trusted operators.
-func (am *AuthUserMiddleware) PrivateAccess() gin.HandlerFunc {
+func (am *AuthUserMiddleware) PrivateAccess(apiBaseURL, uiBaseURL string) gin.HandlerFunc {
 	owner := os.Getenv("ANSWER_TAILSCALE_OWNER")
 	if owner == "" {
 		return func(ctx *gin.Context) { ctx.Next() }
@@ -55,14 +55,23 @@ func (am *AuthUserMiddleware) PrivateAccess() gin.HandlerFunc {
 	if err != nil || len(internal) < 32 || strings.HasPrefix(internal, "replace-") {
 		panic("private access requires an internal token file")
 	}
+	apiBaseURL = strings.TrimRight(apiBaseURL, "/")
+	uiBaseURL = strings.TrimRight(uiBaseURL, "/")
 	return func(ctx *gin.Context) {
 		path := ctx.Request.URL.Path
 		if path == "/healthz" {
 			ctx.Next()
 			return
 		}
-		// Disable registration regardless of the mutable public-signup setting.
-		if path == "/answer/api/v1/user/register/email" {
+		// Disable registration and external authentication before internal ingress.
+		// API and UI routes may be mounted below independently configured prefixes.
+		apiPath := strings.TrimPrefix(path, apiBaseURL)
+		if apiPath == "/answer/api/v1/user/register/email" ||
+			strings.HasPrefix(apiPath, "/answer/api/v1/connector/login/") ||
+			strings.HasPrefix(apiPath, "/answer/api/v1/connector/redirect/") ||
+			apiPath == "/answer/api/v1/connector/binding/email" ||
+			strings.HasPrefix(apiPath, "/answer/api/v1/user-center/login/") ||
+			strings.HasPrefix(apiPath, "/answer/api/v1/user-center/sign-up/") {
 			ctx.AbortWithStatus(http.StatusForbidden)
 			return
 		}
@@ -92,12 +101,12 @@ func (am *AuthUserMiddleware) PrivateAccess() gin.HandlerFunc {
 			ctx.AbortWithStatus(http.StatusForbidden)
 			return
 		}
-		if path == "/users/login" || path == "/users/register" {
-			ctx.Redirect(http.StatusSeeOther, "/")
+		if path == uiBaseURL+"/users/login" || path == uiBaseURL+"/users/register" {
+			ctx.Redirect(http.StatusSeeOther, uiBaseURL+"/")
 			ctx.Abort()
 			return
 		}
-		if strings.HasPrefix(path, "/answer/api/v1/user/login/") {
+		if strings.HasPrefix(apiPath, "/answer/api/v1/user/login/") {
 			ctx.AbortWithStatus(http.StatusForbidden)
 			return
 		}

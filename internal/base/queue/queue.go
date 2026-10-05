@@ -26,8 +26,11 @@ import (
 	"github.com/segmentfault/pacman/log"
 )
 
+type workerContextKey struct{}
+
 type Service[T any] interface {
 	// Send enqueues a message to be processed asynchronously.
+	// Messages sent by its handler with the supplied context finish within that handler.
 	Send(ctx context.Context, msg T)
 
 	// RegisterHandler sets the handler function for processing messages.
@@ -61,6 +64,12 @@ func New[T any](name string, bufferSize int) *Queue[T] {
 // Send enqueues a message to be processed asynchronously.
 // It will block if the queue is full.
 func (q *Queue[T]) Send(ctx context.Context, msg T) {
+	// Fan-out from this worker must finish before its parent is drained. Processing
+	// it inline also avoids deadlocking the only worker on a full queue buffer.
+	if ctx.Value(workerContextKey{}) == q {
+		q.processMessage(msg)
+		return
+	}
 	q.mu.RLock()
 	defer q.mu.RUnlock()
 
@@ -122,7 +131,7 @@ func (q *Queue[T]) processMessage(msg T) {
 
 	// Use background context for async processing
 	// TODO: Consider adding timeout or using a derived context
-	if err := handler(context.TODO(), msg); err != nil {
+	if err := handler(context.WithValue(context.Background(), workerContextKey{}, q), msg); err != nil {
 		log.Errorf("[%s] handler error: %v", q.name, err)
 	}
 }

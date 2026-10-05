@@ -51,7 +51,12 @@ func (nc *NotificationController) AgentUnreadPage(ctx *gin.Context) {
 		return
 	}
 	userID := middleware.GetLoginUserIDFromContext(ctx)
-	if !nc.notificationService.AgentMayReceive(ctx, userID) {
+	allowed, eligibilityErr := nc.notificationService.AgentMayReceive(ctx, userID)
+	if eligibilityErr != nil {
+		ctx.AbortWithStatus(http.StatusServiceUnavailable)
+		return
+	}
+	if !allowed {
 		ctx.AbortWithStatus(http.StatusForbidden)
 		return
 	}
@@ -63,7 +68,12 @@ func (nc *NotificationController) AgentUnreadPage(ctx *gin.Context) {
 // Subscribe precedes ready so a snapshot taken after ready overlaps all live changes.
 func (nc *NotificationController) AgentEvents(ctx *gin.Context) {
 	userID := middleware.GetLoginUserIDFromContext(ctx)
-	if !nc.notificationService.AgentMayReceive(ctx, userID) {
+	allowed, eligibilityErr := nc.notificationService.AgentMayReceive(ctx, userID)
+	if eligibilityErr != nil {
+		ctx.AbortWithStatus(http.StatusServiceUnavailable)
+		return
+	}
+	if !allowed {
 		ctx.AbortWithStatus(http.StatusForbidden)
 		return
 	}
@@ -89,6 +99,14 @@ func (nc *NotificationController) AgentEvents(ctx *gin.Context) {
 		}
 		return ctx.Request.Context().Err() == nil
 	}
+	mayReceive := func() bool {
+		allowed, err := nc.notificationService.AgentMayReceive(ctx, userID)
+		if err != nil {
+			write("event: error\ndata: {\"code\":\"service_unavailable\",\"retryable\":true}\n\n")
+			return false
+		}
+		return allowed
+	}
 	if !write("event: ready\ndata: {}\n\n") {
 		return
 	}
@@ -99,14 +117,14 @@ func (nc *NotificationController) AgentEvents(ctx *gin.Context) {
 		case <-ctx.Request.Context().Done():
 			return
 		case id, open := <-events:
-			if !open || !nc.notificationService.AgentMayReceive(ctx, userID) {
+			if !open || !mayReceive() {
 				return
 			}
 			if !agentCursor(id) || !write("event: notification\ndata: {\"notificationId\":\""+id+"\"}\n\n") {
 				return
 			}
 		case <-heartbeat.C:
-			if !nc.notificationService.AgentMayReceive(ctx, userID) || !write(": heartbeat\n\n") {
+			if !mayReceive() || !write(": heartbeat\n\n") {
 				return
 			}
 		}
