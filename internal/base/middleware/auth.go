@@ -41,6 +41,8 @@ import (
 
 var ctxUUIDKey = "ctxUuidKey"
 
+const privateInternalKey = "privateInternal"
+
 // AuthUserMiddleware auth user middleware
 type AuthUserMiddleware struct {
 	userCommon            *usercommon.UserCommon
@@ -68,6 +70,13 @@ func (am *AuthUserMiddleware) Auth() gin.HandlerFunc {
 			return
 		}
 		userInfo, err := am.authService.GetUserCacheInfo(ctx, token)
+		// Internal MCP callers must renew an expired supplied session rather than
+		// silently receiving an anonymous view from an optional-auth read route.
+		if ctx.GetBool(privateInternalKey) && (err != nil || userInfo == nil) {
+			handler.HandleResponse(ctx, errors.Unauthorized(reason.UnauthorizedError), nil)
+			ctx.Abort()
+			return
+		}
 		if err != nil {
 			ctx.Next()
 			return

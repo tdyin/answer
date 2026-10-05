@@ -74,6 +74,7 @@ func (am *AuthUserMiddleware) PrivateAccess() gin.HandlerFunc {
 			}
 			// Internal credentials never map to the human principal.
 			ctx.Request.Header.Del("Tailscale-User-Login")
+			ctx.Set(privateInternalKey, true)
 			ctx.Next()
 			return
 		}
