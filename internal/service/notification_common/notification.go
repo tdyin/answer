@@ -144,6 +144,11 @@ func (ns *NotificationCommon) AddNotification(ctx context.Context, msg *schema.N
 		}
 	}
 
+	if msg.OnlyPushAllFollow || (msg.Type == schema.NotificationTypeInbox && msg.TriggerUserID == msg.ReceiverUserID) {
+		ns.SendNotificationToAllFollower(ctx, msg, questionID)
+		return nil
+	}
+
 	if msg.Type == schema.NotificationTypeAchievement {
 		notificationInfo, exist, err := ns.notificationRepo.GetByUserIdObjectIdTypeId(ctx, req.ReceiverUserID, req.ObjectInfo.ObjectID, req.Type)
 		if err != nil {
@@ -211,7 +216,7 @@ func (ns *NotificationCommon) AddNotification(ctx context.Context, msg *schema.N
 		}
 	}
 
-	go ns.SendNotificationToAllFollower(ctx, msg, questionID)
+	ns.SendNotificationToAllFollower(ctx, msg, questionID)
 
 	if msg.Type == schema.NotificationTypeInbox {
 		ns.syncNotificationToPlugin(ctx, objInfo, msg)
@@ -333,7 +338,9 @@ func (ns *NotificationCommon) SendNotificationToAllFollower(ctx context.Context,
 	if msg.NotificationAction != constant.NotificationUpdateQuestion &&
 		msg.NotificationAction != constant.NotificationAnswerTheQuestion &&
 		msg.NotificationAction != constant.NotificationUpdateAnswer &&
-		msg.NotificationAction != constant.NotificationAcceptAnswer {
+		msg.NotificationAction != constant.NotificationAcceptAnswer &&
+		msg.NotificationAction != constant.NotificationCommentQuestion &&
+		msg.NotificationAction != constant.NotificationCommentAnswer {
 		return
 	}
 	condObjectID := msg.ObjectID
@@ -346,12 +353,21 @@ func (ns *NotificationCommon) SendNotificationToAllFollower(ctx context.Context,
 		return
 	}
 	log.Infof("send notification to all followers: %s %d", condObjectID, len(userIDs))
+	skipped := map[string]bool{msg.TriggerUserID: true, msg.ReceiverUserID: true}
+	for _, userID := range msg.ExcludeFollowerUserIDs {
+		skipped[userID] = true
+	}
 	for _, userID := range userIDs {
+		if skipped[userID] {
+			continue
+		}
+		skipped[userID] = true
 		t := &schema.NotificationMsg{}
 		_ = copier.Copy(t, msg)
 		t.ReceiverUserID = userID
 		t.TriggerUserID = msg.TriggerUserID
 		t.NoNeedPushAllFollow = true
+		t.OnlyPushAllFollow = false
 		ns.notificationQueueService.Send(ctx, t)
 	}
 }

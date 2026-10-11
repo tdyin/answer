@@ -22,6 +22,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/apache/answer/internal/service/auth"
 
@@ -83,6 +84,16 @@ func (ar *authRepo) SetUserCacheInfo(ctx context.Context,
 		log.Error(err)
 	}
 	return nil
+}
+
+// SetRequestUserCacheInfo stores a short-lived native principal without growing
+// the user's persistent token mapping. The request middleware removes it on exit.
+func (ar *authRepo) SetRequestUserCacheInfo(ctx context.Context, accessToken string, userInfo *entity.UserCacheInfo) error {
+	encoded, err := json.Marshal(userInfo)
+	if err != nil {
+		return err
+	}
+	return ar.data.Cache.SetString(ctx, constant.UserTokenCacheKey+accessToken, string(encoded), time.Minute)
 }
 
 // GetUserVisitCacheInfo get user visit cache info

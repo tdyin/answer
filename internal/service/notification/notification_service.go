@@ -185,16 +185,25 @@ func (ns *NotificationService) ClearIDUnRead(ctx context.Context, userID string,
 	notificationInfo, exist, err := ns.notificationRepo.GetById(ctx, id)
 	if err != nil {
 		log.Errorf("get notification failed: %v", err)
-		return nil
+		return err
 	}
 	if !exist || notificationInfo.UserID != userID {
 		return nil
 	}
-	if notificationInfo.IsRead == schema.NotificationNotRead {
-		err := ns.notificationRepo.ClearIDUnRead(ctx, userID, id)
-		if err != nil {
-			return err
-		}
+	if notificationInfo.IsRead != schema.NotificationNotRead {
+		return nil
+	}
+	changed := true
+	if atomic, ok := ns.notificationRepo.(notficationcommon.NotificationAcknowledger); ok {
+		changed, err = atomic.AcknowledgeNotification(ctx, userID, id)
+	} else {
+		err = ns.notificationRepo.ClearIDUnRead(ctx, userID, id)
+	}
+	if err != nil {
+		return err
+	}
+	if !changed {
+		return nil
 	}
 
 	err = ns.notificationCommon.RemoveBadgeAwardAlertCache(ctx, userID, id)

@@ -26,6 +26,7 @@ import (
 	"github.com/apache/answer/internal/schema"
 	"github.com/apache/answer/internal/service/role"
 	"github.com/apache/answer/internal/service/siteinfo_common"
+	usercommon "github.com/apache/answer/internal/service/user_common"
 	"github.com/apache/answer/ui"
 	"github.com/gin-gonic/gin"
 
@@ -40,8 +41,11 @@ import (
 
 var ctxUUIDKey = "ctxUuidKey"
 
+const privateInternalKey = "privateInternal"
+
 // AuthUserMiddleware auth user middleware
 type AuthUserMiddleware struct {
+	userCommon            *usercommon.UserCommon
 	authService           *auth.AuthService
 	siteInfoCommonService siteinfo_common.SiteInfoCommonService
 }
@@ -49,8 +53,9 @@ type AuthUserMiddleware struct {
 // NewAuthUserMiddleware new auth user middleware
 func NewAuthUserMiddleware(
 	authService *auth.AuthService,
-	siteInfoCommonService siteinfo_common.SiteInfoCommonService) *AuthUserMiddleware {
+	siteInfoCommonService siteinfo_common.SiteInfoCommonService, userCommon *usercommon.UserCommon) *AuthUserMiddleware {
 	return &AuthUserMiddleware{
+		userCommon:            userCommon,
 		authService:           authService,
 		siteInfoCommonService: siteInfoCommonService,
 	}
@@ -65,6 +70,13 @@ func (am *AuthUserMiddleware) Auth() gin.HandlerFunc {
 			return
 		}
 		userInfo, err := am.authService.GetUserCacheInfo(ctx, token)
+		// Internal MCP callers must renew an expired supplied session rather than
+		// silently receiving an anonymous view from an optional-auth read route.
+		if ctx.GetBool(privateInternalKey) && (err != nil || userInfo == nil) {
+			handler.HandleResponse(ctx, errors.Unauthorized(reason.UnauthorizedError), nil)
+			ctx.Abort()
+			return
+		}
 		if err != nil {
 			ctx.Next()
 			return

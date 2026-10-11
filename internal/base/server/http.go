@@ -52,12 +52,14 @@ func NewHTTPServer(debug bool,
 		gin.SetMode(gin.ReleaseMode)
 	}
 	r := gin.New()
+	r.Use(authUserMiddleware.PrivateAccess(uiConf.APIBaseURL, uiConf.BaseURL))
 	r.Use(middleware.Recovery(
 		uiConf.APIBaseURL+"/answer/api/v1",
 		uiConf.APIBaseURL+"/answer/admin/api",
 	))
 	r.Use(func(ctx *gin.Context) {
-		if strings.Contains(ctx.Request.URL.Path, "/chat/completions") {
+		if strings.Contains(ctx.Request.URL.Path, "/chat/completions") ||
+			strings.HasSuffix(ctx.Request.URL.Path, "/notification/agent/events") {
 			return
 		}
 		brotli.Brotli(brotli.DefaultCompression)(ctx)

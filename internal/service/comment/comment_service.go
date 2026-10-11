@@ -240,7 +240,10 @@ func (cs *CommentService) addCommentNotification(
 	// 1. reply to user
 	// 2. comment mention to user
 	// 3. answer or question was commented
-	alreadyNotifiedUserID := make(map[string]bool)
+	alreadyNotifiedUserID := map[string]bool{req.UserID: true}
+	defer func() {
+		noticequeue.SendCommentFollowers(ctx, cs.notificationQueueService, comment.ID, req.UserID, objInfo.ObjectType, alreadyNotifiedUserID)
+	}()
 
 	// get reply user info
 	if len(resp.ReplyUserID) > 0 && resp.ReplyUserID != req.UserID {
@@ -253,10 +256,11 @@ func (cs *CommentService) addCommentNotification(
 			resp.ReplyUserDisplayName = replyUser.DisplayName
 			resp.ReplyUserStatus = replyUser.Status
 		}
-		cs.notificationCommentReply(ctx, replyUser.ID, comment.ID, req.UserID,
-			objInfo.QuestionID, objInfo.Title, htmltext.FetchExcerpt(comment.ParsedText, "...", 240))
-		alreadyNotifiedUserID[replyUser.ID] = true
-		return nil
+		if exist {
+			cs.notificationCommentReply(ctx, replyUser.ID, comment.ID, req.UserID,
+				objInfo.QuestionID, objInfo.Title, htmltext.FetchExcerpt(comment.ParsedText, "...", 240))
+			alreadyNotifiedUserID[replyUser.ID] = true
+		}
 	}
 
 	if len(req.MentionUsernameList) > 0 {
@@ -265,7 +269,6 @@ func (cs *CommentService) addCommentNotification(
 		for _, userID := range alreadyNotifiedUserIDs {
 			alreadyNotifiedUserID[userID] = true
 		}
-		return nil
 	}
 
 	if objInfo.ObjectType == constant.QuestionObjectType && !alreadyNotifiedUserID[objInfo.ObjectCreatorUserID] {
@@ -275,6 +278,7 @@ func (cs *CommentService) addCommentNotification(
 		cs.notificationAnswerComment(ctx, objInfo.QuestionID, objInfo.Title, objInfo.AnswerID,
 			objInfo.ObjectCreatorUserID, comment.ID, req.UserID, htmltext.FetchExcerpt(comment.ParsedText, "...", 240))
 	}
+	alreadyNotifiedUserID[objInfo.ObjectCreatorUserID] = true
 	return nil
 }
 
@@ -589,6 +593,7 @@ func (cs *CommentService) notificationQuestionComment(ctx context.Context, quest
 		ObjectID:       commentID,
 	}
 	msg.ObjectType = constant.CommentObjectType
+	msg.NoNeedPushAllFollow = true
 	msg.NotificationAction = constant.NotificationCommentQuestion
 	cs.notificationQueueService.Send(ctx, msg)
 
@@ -637,6 +642,7 @@ func (cs *CommentService) notificationAnswerComment(ctx context.Context,
 		ObjectID:       commentID,
 	}
 	msg.ObjectType = constant.CommentObjectType
+	msg.NoNeedPushAllFollow = true
 	msg.NotificationAction = constant.NotificationCommentAnswer
 	cs.notificationQueueService.Send(ctx, msg)
 
@@ -680,6 +686,7 @@ func (cs *CommentService) notificationCommentReply(ctx context.Context, replyUse
 		ObjectID:       commentID,
 	}
 	msg.ObjectType = constant.CommentObjectType
+	msg.NoNeedPushAllFollow = true
 	msg.NotificationAction = constant.NotificationReplyToYou
 	cs.notificationQueueService.Send(ctx, msg)
 
@@ -730,9 +737,11 @@ func (cs *CommentService) notificationMention(
 				ObjectID:       commentID,
 			}
 			msg.ObjectType = constant.CommentObjectType
+			msg.NoNeedPushAllFollow = true
 			msg.NotificationAction = constant.NotificationMentionYou
 			cs.notificationQueueService.Send(ctx, msg)
 			alreadyNotifiedUserIDs = append(alreadyNotifiedUserIDs, userInfo.ID)
+			alreadyNotifiedUserID[userInfo.ID] = true
 		}
 	}
 	return alreadyNotifiedUserIDs

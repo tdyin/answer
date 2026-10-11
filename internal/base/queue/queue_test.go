@@ -249,3 +249,38 @@ func TestQueue_SendCloseRace(t *testing.T) {
 		})
 	}
 }
+
+func TestQueueCloseDrainsHandlerFanoutBeyondBuffer(t *testing.T) {
+	q := New[*testMessage]("fanout-drain", 1)
+	entered, release, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	received := 0
+	q.RegisterHandler(func(ctx context.Context, msg *testMessage) error {
+		if msg.ID == 0 {
+			close(entered)
+			<-release
+			for id := 1; id <= 10; id++ {
+				q.Send(ctx, &testMessage{ID: id})
+			}
+		} else {
+			received++
+		}
+		return nil
+	})
+	q.Send(context.Background(), &testMessage{})
+	<-entered
+	go func() { q.Close(); close(done) }()
+	select {
+	case <-done:
+		t.Fatal("Close returned while parent was blocked")
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(release)
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("fanout deadlocked during drain")
+	}
+	if received != 10 {
+		t.Fatalf("drained %d child messages, want 10", received)
+	}
+}

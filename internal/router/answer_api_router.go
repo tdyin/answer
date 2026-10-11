@@ -302,6 +302,8 @@ func (a *AnswerAPIRouter) RegisterAnswerAPIRouter(r *gin.RouterGroup) {
 	r.GET("/permission", a.permissionController.GetPermission)
 
 	// notification
+	r.GET("/notification/agent/page", a.notificationController.AgentUnreadPage)
+	r.GET("/notification/agent/events", a.notificationController.AgentEvents)
 	r.GET("/notification/status", a.notificationController.GetRedDot)
 	r.PUT("/notification/status", a.notificationController.ClearRedDot)
 	r.GET("/notification/page", a.notificationController.GetList)
